@@ -3,54 +3,52 @@ const { SystemMessage, BaseMessage } = require('langchain/schema')
 const { ChatOpenAI } = require('langchain/chat_models/openai')
 const { LLMChain, ConversationChain, MultiPromptChain, MultiRouteChain, RouterChain } = require('langchain/chains')
 const { ConversationSummaryMemory } = require('langchain/memory')
-const readline = require('readline');
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-})
 const errorInput = require('./checkerExamples.js')
 const codeInput = require('./checkerExamples.js')
 
+
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY is not set in the environment variables');
+}
+
 const gpt4 = new ChatOpenAI({
-    openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: 'gpt-4',
-    temperature: 0,
-
+  openAIApiKey: process.env.OPENAI_API_KEY,
+  modelName: 'gpt-4',
+  temperature: 0,
 })
+// const gpt3 = new ChatOpenAI({
+//   openAIApiKey: process.env.OPENAI_API_KEY,
+//   modelName: 'gpt-3.5-turbo',
+//   temperature: 0,
 
-const gpt3 = new ChatOpenAI({
-    openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: 'gpt-3.5-turbo',
-    temperature: 0,
+// })
 
-})
+// const promptNames = ['tsSysMsg', 'pythonSysMsg', 'javaSysMsg']
+// const promptDescriptions = [
+//   "Good for resolving code errors for code written in Typescript.",
+//   "Good for resolving code errors for code written in Python.",
+//   "Good for resolving code errors for code written in Java."
+// ]
 
-const promptNames = ['tsSysMsg', 'pythonSysMsg', 'javaSysMsg']
-const promptDescriptions = [
-    "Good for resolving code errors for code written in Typescript.",
-    "Good for resolving code errors for code written in Python.",
-    "Good for resolving code errors for code written in Java."
-]
-
-const tsSysMsg = new SystemMessage(`
-"Language Learning Model (LLM), prepare to assist with TypeScript error resolution based on the following guidelines:
+const tsSysMsg = new SystemMessage({
+  content: ` Language Learning Model (LLM), prepare to assist with TypeScript error resolution based on the following guidelines:
 Error Recognition: You will receive error messages designated between two arrow brackets like <Error Message>. Focus on recognizing the type, nature, and common solutions associated with these TypeScript-specific errors.
 Code Context: Users may provide TypeScript code snippets designated between two square brackets as:
 [[
 TypeScript Code Snippet
 ]]
-Analyze these snippets for potential issues. Cross-reference the provided error message with the code to pinpoint the root cause within the TypeScript context.
-Solution Prioritization: Offer solutions that are most likely to resolve the specific TypeScript error presented. Consider the context, the exact error message, and the TypeScript code provided.
-Safety and Best Practices: Always prioritize solutions that adhere to TypeScript best practices. Remind yourself to consider the safety of the code changes, even if you're not directly communicating this to the user.
-Clarity: Ensure that your solutions are clear, concise, and actionable. Use TypeScript-specific terminology where necessary for precision.
-Iterative Approach: Be adaptive. If the initial solution isn't effective, refine your approach based on feedback and offer alternative TypeScript-specific solutions.
-External Knowledge: While you possess extensive knowledge up to 2021, be aware that users might reference newer TypeScript features or practices. Adapt and do your best to understand these references.
-User Collaboration: You're working in tandem with the user, even if it's indirectly. Encourage yourself to seek as much detail as possible and to clarify ambiguities within the TypeScript context.
-End Goal: Your primary objective is to assist with resolving TypeScript errors. With this primer in mind, proceed with assisting in the most effective and efficient manner possible."
-`)
+Analyze these snippets for potential issues. Cross-reference the provided error message with the code to pinpoint the root cause within the TypeScript context. \
+Solution Prioritization: Offer solutions that are most likely to resolve the specific TypeScript error presented. Consider the context, the exact error message, and the TypeScript code provided. \
+Safety and Best Practices: Always prioritize solutions that adhere to TypeScript best practices. Remind yourself to consider the safety of the code changes, even if you're not directly communicating this to the user.\
+Clarity: Ensure that your solutions are clear, concise, and actionable. Use TypeScript-specific terminology where necessary for precision.\
+Iterative Approach: Be adaptive. If the initial solution isn't effective, refine your approach based on feedback and offer alternative TypeScript-specific solutions.\
+External Knowledge: While you possess extensive knowledge up to 2021, be aware that users might reference newer TypeScript features or practices. Adapt and do your best to understand these references.\
+User Collaboration: You're working in tandem with the user, even if it's indirectly. Encourage yourself to seek as much detail as possible and to clarify ambiguities within the TypeScript context.\
+End Goal: Your primary objective is to assist with resolving TypeScript errors. With this primer in mind, proceed with assisting in the most effective and efficient manner possible.\
+`})
 
-const pythonSysMsg = new SystemMessage(`
-"Language Learning Model (LLM), prepare to assist with Python error resolution based on the following guidelines:
+const pythonSysMsg = new SystemMessage(
+  `Language Learning Model (LLM), prepare to assist with Python error resolution based on the following guidelines:
 Error Recognition: You will receive error messages designated between two arrow brackets like <Error Message>. Focus on recognizing the type, nature, and common solutions associated with these Python-specific errors.
 Code Context: Users may provide Python code snippets designated between two square brackets as:
 [[
@@ -67,7 +65,7 @@ End Goal: Your primary objective is to assist with resolving Python errors. With
 `)
 
 const javaSysMsg = new SystemMessage(`
-"Language Learning Model (LLM), prepare to assist with Java error resolution based on the following guidelines:
+Language Learning Model (LLM), prepare to assist with Java error resolution based on the following guidelines:
 Error Recognition: You will receive error messages designated between two arrow brackets like <Error Message>. Focus on recognizing the type, nature, and common solutions associated with these Java-specific errors.
 Code Context: Users may provide Java code snippets designated between two square brackets as:
 [[
@@ -84,7 +82,7 @@ End Goal: Your primary objective is to assist with resolving Java errors. With t
 `)
 
 const humanInput = HumanMessagePromptTemplate.fromTemplate(
-`Please help me to resolve the following error arising from my code: \n
+  `Please help me to resolve the following error arising from my code: \n
 <{error}>\n\n
 [[
     {code}
@@ -113,54 +111,72 @@ Code snippets will be designated between two square brackets as follows:
     ]]
 `)
 
-const chatPrompt = new ChatPromptTemplate({inputVariables: ['error', 'code'], promptMessages: [sysMessage, humanInput],})
+const chatPrompt = new ChatPromptTemplate({ inputVariables: ['error', 'code'], promptMessages: [sysMessage, humanInput], })
 
 
 
-const memory = new ConversationSummaryMemory({llm:gpt4})
+const memory = new ConversationSummaryMemory({ llm: gpt4 })
 
-const tsChatPrompt = ChatPromptTemplate.fromPromptMessages([tsSysMsg, humanInput]) 
-const pyChatPrompt = ChatPromptTemplate.fromPromptMessages([pythonSysMsg, humanInput]) 
+const tsChatPrompt = ChatPromptTemplate.fromPromptMessages([tsSysMsg, humanInput])
+const pyChatPrompt = ChatPromptTemplate.fromPromptMessages([pythonSysMsg, humanInput])
 const javaChatPrompt = ChatPromptTemplate.fromPromptMessages([javaSysMsg, humanInput])
 
 //Typescript chain
 const tsChain = new ConversationChain({
-    llm: gpt4,
-    prompt: tsChatPrompt,
-    memory: memory
+  llm: gpt4,
+  prompt: tsChatPrompt,
 })
 
 const pyChain = new ConversationChain({
-    llm: gpt4,
-    prompt: pyChatPrompt,
-    memory: memory
+  llm: gpt4,
+  prompt: pyChatPrompt,
 })
 
 const javaChain = new ConversationChain({
-    llm: gpt4,
-    prompt: javaChatPrompt,
-    memory: memory,
+  llm: gpt4,
+  prompt: javaChatPrompt,
 })
 
 const llmChain = new ConversationChain({
-    llm: gpt4,
-    prompt: chatPrompt,
-    memory: memory})
-
-const routerChain = new MultiRouteChain({
-    routerChain: new RouterChain(),
-    defaultChain: llmChain,
-    destinationChains: [tsChain, pyChain, javaChain, llmChain],
-    memory: memory,
-    verbose: true,
+  llm: gpt4,
+  prompt: chatPrompt,
 })
 
-
-async function routeTester(errorInput, codeInput) {
-    const response = await routerChain.call(errorInput, codeInput);  // Await here
-    return response
+const multiRouterChain = new MultiRouteChain({
+  defaultChain: llmChain,
+  destinationChains: [tsChain, pyChain, javaChain, llmChain],
+})
+const routeinputs = {
+  errorInput: errorInput,
+  codeInput: codeInput,
+}
+async function routeTester(usrInput) {
+  console.log("routeTester start with input:", usrInput);
+  const result = await multiRouterChain.invoke(usrInput);
+  console.log("routeTester end with result:", result);
+  return result;
 }
 
 
-result = Promise.resolve(routeTester(errorInput, codeInput))
-console.log(result)
+async function main() {
+  console.log("main start with inputs:", routeinputs);
+  try {
+    let result = await routeTester(routeinputs);
+    console.log("main end with result:", result);
+    return result;
+  } catch (error) {
+    console.error("An error occurred in main:", error);
+    throw error;
+  }
+}
+
+
+(async () => {
+  try {
+    const result = await main();
+    console.log(result);
+  } catch (error) {
+    console.error("error: ", error);
+  }
+});
+
